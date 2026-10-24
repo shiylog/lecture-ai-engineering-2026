@@ -83,12 +83,33 @@ GitHub の自分の fork で、`lec01` → `main` の PR を作成します。**
 |---|---|
 | 基礎 | 同じ質問を3回ずつ、モデルを変えて（`AIE_MODEL` 環境変数）、または temperature を変えて実行し、回答の違いを answer.md にまとめる |
 | 実装 | `app/ask.py` を改修し、会話履歴を保ったまま続けて質問できるようにする |
-| 発展 | 応答時間とトークン数を計測し、複数のモデルや質問で比較する。無料枠のレート制限との関係も考察する |
+| 発展 | `app.ask` が表示する応答時間・トークン数を使い、複数のモデルや質問で比較する。無料枠のレート制限との関係も考察する |
 
 モデルの切り替え例：
 
 ```bash
 AIE_MODEL=gemini-3.5-flash uv run python -m app.ask "LoRAとは何ですか？"
 ```
+
+発展に取り組む場合は、例えば次のように同じ質問をモデルごとに実行し、表示された応答時間・入力/出力トークン数・回答を記録します。講座固有の質問も加えて、質問内容による違いも比べてみましょう。
+
+```bash
+uv run python -m app.ask "LoRAとは何ですか？"
+AIE_MODEL=gemini-3.5-flash uv run python -m app.ask "LoRAとは何ですか？"
+uv run python -m app.ask "AIE2026の講座の宿題にある「3レベル」とは何ですか？"
+AIE_MODEL=gemini-3.5-flash uv run python -m app.ask "AIE2026の講座の宿題にある「3レベル」とは何ですか？"
+
+uv run python -m app.ask "AIE2026第1回の宿題では、基礎・実装・発展の各レベルで何に取り組みますか？"
+AIE_MODEL=gemini-3.5-flash uv run python -m app.ask "AIE2026の講座で使う「lecNN タグ」とは何ですか？"
+AIE_MODEL=gemini-3-flash-preview uv run python -m app.ask "AIE2026の講座で使う「lecNN タグ」とは何ですか？"
+AIE_MODEL=gemini-4-argon uv run python -m app.ask "AIE2026の講座で使う「lecNN タグ」とは何ですか？"
+
+uv run python -m app.ask "AIE2026第1回の宿題では、基礎・実装・発展の各レベルで何に取り組みますか？"
+AIE_MODEL=gemini-3.5-flash uv run python -m app.ask "AIE2026第1回の宿題では、基礎・実装・発展の各レベルで何に取り組みますか？"
+AIE_MODEL=gemini-3.6-flash uv run python -m app.ask "AIE2026第1回の宿題では、基礎・実装・発展の各レベルで何に取り組みますか？"
+AIE_MODEL=gemini-3-flash-preview uv run python -m app.ask "AIE2026第1回の宿題では、基礎・実装・発展の各レベルで何に取り組みますか？"
+```
+
+無料枠のレート制限はモデルごとに異なる場合があります。短時間に呼び出しすぎると `429` になることがあるため、エラーが出たら少し待ってから再実行し、モデルごとの制限は [Gemini API のレート制限](https://ai.google.dev/gemini-api/docs/rate-limits) で確認してください。測定結果からは、呼び出し回数やトークン数と制限の関係を考察します。応答時間は通信状況などでも変わるので、複数回測って傾向を比較しましょう。
 
 temperature を変えるには、`generate_content` の `config` 引数を調べてみましょう。
