@@ -135,7 +135,53 @@ def search(query: str) -> list[dict]:
                    vec_distance_cosine(embedding, ?) AS distance
             FROM chunks ORDER BY distance, page_id LIMIT ?
         """, (sqlite_vec.serialize_float32(vector), RAG_TOP_K))
-        return [dict(row) for row in rows]
+        hits = [dict(row) for row in rows]
+
+    document_pages = defaultdict(list)
+    for page in load_pages(RAG_SOURCE):
+        document_pages[page["document_id"]].append(page)
+    page_positions = {
+        document_id: {page["page_id"]: index for index, page in enumerate(pages)}
+        for document_id, pages in document_pages.items()
+    }
+
+    expanded = []
+    seen = set()
+    for hit in hits:
+        document_id = hit["document_id"]
+        document = document_pages.get(document_id, [])
+        index = page_positions.get(document_id, {}).get(hit["page_id"])
+        if index is None or document[index]["content"] != hit["content"]:
+            neighbors = {}
+        else:
+            neighbors = {}
+            if index > 0:
+                neighbors["previous"] = document[index - 1]
+            if index + 1 < len(document):
+                neighbors["next"] = document[index + 1]
+
+        context_pages = {
+            relation: {**page, "relation": relation, "distance": hit["distance"]}
+            for relation, page in neighbors.items()
+        }
+        hit_with_context = {
+            **hit,
+            "context_pages": list(context_pages.values()),
+            "previous_page": context_pages.get("previous"),
+            "next_page": context_pages.get("next"),
+        }
+
+        if hit["page_id"] not in seen:
+            expanded.append(hit_with_context)
+            seen.add(hit["page_id"])
+
+        for page in context_pages.values():
+            if page["page_id"] in seen:
+                continue
+            expanded.append(page)
+            seen.add(page["page_id"])
+
+    return expanded
 
 
 def search_graph(query: str) -> dict:

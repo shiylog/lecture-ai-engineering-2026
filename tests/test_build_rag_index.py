@@ -42,6 +42,36 @@ def test_built_index_can_be_searched(materials, monkeypatch):
     assert hits[0]["distance"] == pytest.approx(0)
 
 
+def test_search_expands_to_adjacent_pages_without_duplicates(tmp_path, monkeypatch):
+    source = tmp_path / "lectures.json"
+    source.write_text(json.dumps([
+        {"id": "lec01-main", "title": "講義1", "content": [
+            {"section": "章", "content": [
+                {"id": "lec01-main-p001", "title": "前", "page": 1, "content": "前ページ"},
+                {"id": "lec01-main-p002", "title": "現在", "page": 2, "content": "検索対象"},
+                {"id": "lec01-main-p003", "title": "次", "page": 3, "content": "次ページ"},
+            ]}]
+        }
+    ], ensure_ascii=False), encoding="utf-8")
+    database = tmp_path / "index.sqlite3"
+    build_index(
+        source,
+        database,
+        embedder=lambda text, task: [1, 0] if "検索対象" in text else [0, 1],
+    )
+
+    monkeypatch.setattr(retrieval, "RAG_SOURCE", source)
+    monkeypatch.setattr(retrieval, "RAG_DB", database)
+    monkeypatch.setattr(retrieval, "embed_text", lambda *_: [1, 0])
+
+    hits = retrieval.search("検索対象")
+    ids = [hit["page_id"] for hit in hits]
+    assert ids == ["lec01-main-p002", "lec01-main-p001", "lec01-main-p003"]
+    assert len(ids) == len(set(ids))
+    assert hits[0]["previous_page"]["page_id"] == "lec01-main-p001"
+    assert hits[0]["next_page"]["page_id"] == "lec01-main-p003"
+
+
 def test_existing_index_survives_failed_rebuild(materials):
     source, database = materials
     build_index(source, database, embedder=lambda *_: [1, 0])
